@@ -2,12 +2,24 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 SECRET_KEY = 'django-insecure-%h77jjs)kw_*=sg0=6_0g$*j!^hlkxv6w5wmd%d4ubka@+bu%g'
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+CSRF_FAILURE_VIEW = 'pages.views.csrf_failure'
+
+LOGIN_REDIRECT_URL = 'blog:index'
+
+ALLOWED_HOSTS = ['*']
+
+LOGIN_URL = 'login'
+
+INTERNAL_IPS = [
+    '127.0.0.1',
+]
+
+EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
+EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'
 
 
 INSTALLED_APPS = [
@@ -19,6 +31,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'blog.apps.BlogConfig',
     'pages.apps.PagesConfig',
+    'users.apps.UsersConfig',
+    'django_bootstrap5',
+    'debug_toolbar',
 ]
 
 MIDDLEWARE = [
@@ -29,6 +44,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'debug_toolbar.middleware.DebugToolbarMiddleware',
 ]
 
 ROOT_URLCONF = 'blogicum.urls'
@@ -90,5 +106,6 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static', ]
+MEDIA_ROOT = 'blogicum/media/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

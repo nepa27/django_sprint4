@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group, User
 
-from .models import Post, Category, Location
+from .models import Post, Category, Comment, Location
 
 
 @admin.register(Post)
@@ -81,6 +81,14 @@ class CategoryAdmin(admin.ModelAdmin):
     )
     search_fields = (
         'title',
+    )
+
+
+@admin.register(Comment)
+class CommentAdmin(admin.ModelAdmin):
+    list_display = (
+        'text',
+        'author',
     )
 
 

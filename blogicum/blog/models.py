@@ -53,6 +53,12 @@ class Post(IsPublishAtCreateModel):
         verbose_name='Категория'
     )
 
+    image = models.ImageField(
+        'Фото',
+        upload_to='posts_images',
+        blank=True
+    )
+
     class Meta:
         default_related_name = 'posts'
         verbose_name_plural = 'Публикации'
@@ -99,3 +105,25 @@ class Location(IsPublishAtCreateModel):
 
     def __str__(self):
         return self.name[:SIZE_CUT_TITLE]
+
+
+class Comment(IsPublishAtCreateModel):
+    text = models.TextField(
+        verbose_name='Текст комментария',
+    )
+    post = models.ForeignKey(
+        'Post',
+        on_delete=models.CASCADE,
+        null=True,
+        verbose_name='Пост',
+        related_name='comments',
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='Автор комментария',
+    )
+
+    class Meta:
+        verbose_name_plural = 'Комментарии'
+        verbose_name = 'комментарий'
