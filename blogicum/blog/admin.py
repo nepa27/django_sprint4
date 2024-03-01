@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group, User
+from django.utils.safestring import mark_safe
 
 from .models import Post, Category, Comment, Location
 
@@ -13,8 +14,11 @@ class PostsAdmin(admin.ModelAdmin):
         'category',
         'pub_date',
         'author',
-        'is_published'
+        'is_published',
+        'get_image',
+
     )
+    readonly_fields = ('get_image',)
     list_display_links = (
         'title',
         'category'
@@ -33,7 +37,14 @@ class PostsAdmin(admin.ModelAdmin):
     search_fields = (
         'title',
     )
-    list_per_page = 10
+
+    def get_image(self, obj):
+        if not (obj.pk and obj.image):
+            return ''
+        return mark_safe(f'<img src={obj.image.url} width="80" height="60">')
+    get_image.short_description = 'Изображение'
+
+    PAGINATION = 10
 
 
 @admin.register(Location)

@@ -1,14 +1,12 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth.mixins import (
-    LoginRequiredMixin, UserPassesTestMixin)
-from django.core.paginator import Paginator
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Count
-from django.views.generic.edit import CreateView, UpdateView
-from django.shortcuts import get_object_or_404, render
+from django.views.generic import CreateView, UpdateView, ListView
+from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 
-from blog.models import Post
+from blog.constants import PAGINATION
 
 User = get_user_model()
 
@@ -30,33 +28,41 @@ class UserUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     ]
     template_name = 'users/user_form.html'
 
+    def get_object(self, queryset=None):
+        username = self.kwargs.get('username')
+        return get_object_or_404(User, username=username)
+
     def get_success_url(self):
         return reverse_lazy(
             'profile',
-            kwargs={'username': self.request.user}
+            kwargs={'username': self.request.user.username}
         )
 
     def test_func(self):
-        return self.request.user.pk == self.kwargs['pk']
+        return self.request.user.username == self.kwargs['username']
 
 
-def profile_user(request, username):
-    profile = get_object_or_404(
-        User,
-        username=username
-    )
-    post = Post.objects.filter(
-        author=profile
-    ).annotate(comment_count=Count(
-        'comments', )
-    ).order_by('-pub_date')
-    paginator = Paginator(post, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+class ProfileView(ListView):
+    model = User
+    template_name = 'users/profile.html'
+    paginate_by = PAGINATION
+    slug_url_kwarg = 'username'
 
-    return render(
-        request,
-        'users/profile.html',
-        {'profile': profile,
-         'page_obj': page_obj}
-    )
+    def get_profile(self):
+        profile = get_object_or_404(
+            User,
+            username=self.kwargs['username']
+        )
+        return profile
+
+    def get_queryset(self):
+        queryset = self.get_profile().posts.annotate(
+            comment_count=Count(
+                'comments', )
+        ).order_by('-pub_date')
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['profile'] = self.get_profile()
+        return context

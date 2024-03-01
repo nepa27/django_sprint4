@@ -6,13 +6,7 @@ from .constants import SIZE_CUT_TITLE, MAX_LENGTH
 User = get_user_model()
 
 
-class IsPublishAtCreateModel(models.Model):
-    is_published = models.BooleanField(
-        default=True,
-        verbose_name='Опубликовано',
-        help_text='Снимите галочку, '
-                  'чтобы скрыть публикацию.'
-    )
+class CreatedAt(models.Model):
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Добавлено'
@@ -22,7 +16,20 @@ class IsPublishAtCreateModel(models.Model):
         abstract = True
 
 
-class Post(IsPublishAtCreateModel):
+class IsPublishModel(CreatedAt):
+    is_published = models.BooleanField(
+        default=True,
+        verbose_name='Опубликовано',
+        help_text='Снимите галочку, '
+                  'чтобы скрыть публикацию.'
+    )
+
+    class Meta:
+        abstract = True
+        ordering = ('-pub_date',)
+
+
+class Post(IsPublishModel):
     title = models.CharField(
         max_length=MAX_LENGTH,
         verbose_name='Заголовок'
@@ -69,7 +76,7 @@ class Post(IsPublishAtCreateModel):
         return self.title[:SIZE_CUT_TITLE]
 
 
-class Category(IsPublishAtCreateModel):
+class Category(IsPublishModel):
     title = models.CharField(
         max_length=MAX_LENGTH,
         verbose_name='Заголовок'
@@ -85,7 +92,7 @@ class Category(IsPublishAtCreateModel):
                   ' дефис и подчёркивание.'
     )
 
-    class Meta:
+    class Meta(CreatedAt.Meta):
         verbose_name_plural = 'Категории'
         verbose_name = 'категория'
 
@@ -93,13 +100,13 @@ class Category(IsPublishAtCreateModel):
         return self.title[:SIZE_CUT_TITLE]
 
 
-class Location(IsPublishAtCreateModel):
+class Location(IsPublishModel):
     name = models.CharField(
         max_length=MAX_LENGTH,
         verbose_name='Название места'
     )
 
-    class Meta:
+    class Meta(CreatedAt.Meta):
         verbose_name_plural = 'Местоположения'
         verbose_name = 'местоположение'
 
@@ -107,7 +114,7 @@ class Location(IsPublishAtCreateModel):
         return self.name[:SIZE_CUT_TITLE]
 
 
-class Comment(IsPublishAtCreateModel):
+class Comment(CreatedAt):
     text = models.TextField(
         verbose_name='Текст комментария',
     )
@@ -116,7 +123,6 @@ class Comment(IsPublishAtCreateModel):
         on_delete=models.CASCADE,
         null=True,
         verbose_name='Пост',
-        related_name='comments',
     )
     author = models.ForeignKey(
         User,
@@ -124,6 +130,10 @@ class Comment(IsPublishAtCreateModel):
         verbose_name='Автор комментария',
     )
 
-    class Meta:
+    class Meta(CreatedAt.Meta):
+        default_related_name = 'comments'
         verbose_name_plural = 'Комментарии'
         verbose_name = 'комментарий'
+
+    def __str__(self):
+        return self.text[:SIZE_CUT_TITLE]

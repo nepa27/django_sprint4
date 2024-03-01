@@ -1,135 +1,14 @@
-from django.contrib.auth import get_user_model
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.core.paginator import Paginator
-from django.db.models import Count, Q
-from django.shortcuts import get_object_or_404, render, redirect
+from django.db.models import Count
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.timezone import now
-from django.views.generic import (
-    CreateView, DeleteView, DetailView, ListView, UpdateView,
-)
+from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
-from .forms import CommentForm, PostForm
-from .models import Post, Category, Comment
-
-User = get_user_model()
-
-
-class PostMixin:
-    model = Post
-    form_class = PostForm
-
-
-class IndexView(LoginRequiredMixin, PostMixin, ListView):
-    template_name = 'blog/index.html'
-    paginate_by = 10
-
-    def get_queryset(self):
-        queryset = Post.objects.annotate(
-            comment_count=Count('comments')
-        ).order_by('-pub_date')
-        queryset = filter_posts_by_date(queryset)
-        return queryset
-
-
-class PostDetailView(LoginRequiredMixin, DetailView):
-    model = Post
-    context_object_name = 'post'
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        if not self.request.user.is_superuser:
-            queryset = queryset.filter(
-                Q(author=self.request.user) | Q(is_published=True)
-            )
-        return queryset
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form'] = CommentForm()
-        context['comments'] = self.object.comments.select_related('author')
-        return context
-
-
-class CreatePostView(LoginRequiredMixin, PostMixin, CreateView):
-
-    def form_valid(self, form):
-        form.instance.author = self.request.user
-        return super().form_valid(form)
-
-    def get_success_url(self):
-        return reverse_lazy(
-            'profile',
-            kwargs={'username': self.request.user}
-        )
-
-
-class UpdatePostView(LoginRequiredMixin, PostMixin,
-                     UpdateView):
-    def get_success_url(self):
-        return reverse_lazy(
-            'blog:post_detail',
-            kwargs={'pk': self.kwargs['pk']}
-        )
-
-    def form_valid(self, form):
-        if form.instance.author != self.request.user:
-            return redirect(
-                'blog:post_detail',
-                self.kwargs['pk']
-            )
-
-        return super().form_valid(form)
-
-
-class DeletePostView(LoginRequiredMixin, UserPassesTestMixin,
-                     PostMixin, DeleteView):
-    template_name = 'blog/post_form.html'
-    success_url = reverse_lazy('blog:index')
-
-    def test_func(self):
-        return self.request.user == self.get_object().author
-
-
-class CommentMixin:
-    model = Comment
-    form_class = CommentForm
-    template_name = 'includes/comments.html'
-
-    def get_success_url(self):
-        return reverse_lazy(
-            'blog:post_detail',
-            kwargs={'pk': self.object.post_id}
-        )
-
-
-class CreateCommentView(CommentMixin, LoginRequiredMixin, CreateView):
-
-    def form_valid(self, form):
-        form.instance.author = self.request.user
-        form.instance.post = get_object_or_404(Post, pk=self.kwargs['pk'])
-        return super().form_valid(form)
-
-
-class UpdateCommentView(CommentMixin, LoginRequiredMixin, UpdateView):
-    template_name = 'blog/comment.html'
-
-    def form_valid(self, form):
-        if form.instance.author != self.request.user:
-            return redirect(
-                'blog:post_detail',
-                self.kwargs['post_pk']
-            )
-        form.instance.post = get_object_or_404(Post, pk=self.kwargs['post_pk'])
-        return super().form_valid(form)
-
-
-class DeleteCommentView(LoginRequiredMixin, UserPassesTestMixin,
-                        CommentMixin, DeleteView):
-    template_name = 'blog/comment.html'
-
-    def test_func(self):
-        return self.request.user == self.get_object().author
+from .constants import PAGINATION
+from .forms import CommentForm
+from .models import Post, Category
+from .mixin import PostMixin, CommentMixin, UserPassesMixin
 
 
 def filter_posts_by_date(post_manager):
@@ -144,21 +23,117 @@ def filter_posts_by_date(post_manager):
     )
 
 
-def category_post(request, category_slug):
-    category = get_object_or_404(
-        Category,
-        is_published=True,
-        slug=category_slug
+def annotate_comments(post_manager):
+    return post_manager.annotate(comment_count=Count('comments')
+                                 ).order_by('-pub_date')
+
+
+class IndexView(ListView):
+    template_name = 'blog/index.html'
+    paginate_by = PAGINATION
+    queryset = filter_posts_by_date(
+        annotate_comments(Post.objects)
     )
 
-    post = filter_posts_by_date(category.posts.all())
-    paginator = Paginator(post, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
 
-    return render(
-        request,
-        'blog/category.html',
-        {'page_obj': page_obj,
-         'category': category}
-    )
+class PostDetailView(PostMixin, ListView):
+    model = Post
+    context_object_name = 'post'
+    template_name = 'blog/post_detail.html'
+    paginate_by = PAGINATION
+
+    def get_post(self):
+        post = get_object_or_404(Post, pk=self.kwargs.get('post_pk'))
+        if not post.is_published and post.author != self.request.user:
+            raise Http404("Пост не найден")
+        return post
+
+    def get_queryset(self):
+        queryset = self.get_post().comments.select_related('author')
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['post'] = self.get_post()
+        context['form'] = CommentForm()
+        return context
+
+
+class CreatePostView(PostMixin, CreateView):
+
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        return super().form_valid(form)
+
+
+class UpdatePostView(PostMixin, UserPassesMixin, UpdateView):
+
+    def handle_no_permission(self):
+        return redirect(
+            'blog:post_detail',
+            self.kwargs['post_pk']
+        )
+
+    def get_success_url(self):
+        return reverse_lazy(
+            'blog:post_detail',
+            kwargs={'post_pk': self.kwargs['post_pk']}
+        )
+
+    def test_func(self):
+        return self.request.user == self.get_object().author
+
+
+class DeletePostView(PostMixin, UserPassesMixin, DeleteView):
+
+    def handle_no_permission(self):
+        return redirect(
+            'blog:post_detail',
+            self.kwargs['post_pk']
+        )
+
+    def test_func(self):
+        return self.request.user == self.get_object().author
+
+
+class CreateCommentView(CommentMixin, CreateView):
+    template_name = 'includes/comments.html'
+
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        form.instance.post = get_object_or_404(
+            Post,
+            pk=self.kwargs['comment_pk']
+        )
+        return super().form_valid(form)
+
+
+class UpdateCommentView(CommentMixin, UserPassesMixin, UpdateView):
+    pass
+
+
+class DeleteCommentView(CommentMixin, UserPassesMixin, DeleteView):
+    pass
+
+
+class CategoryView(ListView):
+    template_name = 'blog/category.html'
+    slug_url_kwarg = 'category'
+    paginate_by = PAGINATION
+
+    def get_category(self):
+        category = get_object_or_404(
+            Category,
+            is_published=True,
+            slug=self.kwargs.get('category')
+        )
+        return category
+
+    def get_queryset(self):
+        queryset = filter_posts_by_date(self.get_category().posts.all())
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['category'] = self.get_category()
+        return context
