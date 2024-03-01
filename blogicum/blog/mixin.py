@@ -1,3 +1,4 @@
+from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 
@@ -10,11 +11,17 @@ class UserPassesMixin(UserPassesTestMixin):
         return self.request.user == self.get_object().author
 
 
-class PostMixin(LoginRequiredMixin):
+class PostMixin(UserPassesMixin, LoginRequiredMixin):
     model = Post
     form_class = PostForm
     pk_url_kwarg = 'post_pk'
     template_name = 'blog/post_form.html'
+
+    def handle_no_permission(self):
+        return redirect(
+            'blog:post_detail',
+            self.kwargs['post_pk']
+        )
 
     def get_success_url(self):
         return reverse_lazy(
