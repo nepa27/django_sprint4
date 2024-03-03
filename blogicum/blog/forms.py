@@ -1,4 +1,4 @@
-import datetime
+from django.utils import timezone
 from django import forms
 
 from .models import Comment, Post
@@ -6,19 +6,17 @@ from .models import Comment, Post
 
 class PostForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
-        now_date = datetime.date.today().strftime('%Y-%m-%d')
-        now_time = datetime.datetime.now().time().strftime('%H:%M')
-        kwargs.update(initial={
-            'pub_date': f'{now_date} {now_time}'
-        })
-        super(PostForm, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
+        self.fields['pub_date'].initial = timezone.localtime(
+            timezone.now()
+        ).strftime('%Y-%m-%dT%H:%M')
 
     class Meta:
         model = Post
         exclude = ('author',)
         widgets = {
             'pub_date': forms.DateTimeInput(
-                attrs={'type': 'datetime'},
+                attrs={'type': 'datetime-local'},
                 format='%Y-%m-%d %H:%M',
             )
         }

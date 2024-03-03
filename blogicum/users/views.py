@@ -3,10 +3,11 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Count
 from django.views.generic import CreateView, UpdateView, ListView
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, reverse
 from django.urls import reverse_lazy
 
 from blog.constants import PAGINATION
+from blog.views import annotate_comments, filter_posts_by_date
 
 User = get_user_model()
 
@@ -20,20 +21,19 @@ class CreateUserView(CreateView):
 
 class UserUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = User
-    fields = [
+    fields = (
         'username',
         'email',
         'first_name',
         'last_name'
-    ]
+    )
     template_name = 'users/user_form.html'
 
     def get_object(self, queryset=None):
-        username = self.kwargs.get('username')
-        return get_object_or_404(User, username=username)
+        return get_object_or_404(User, username=self.kwargs.get('username'))
 
     def get_success_url(self):
-        return reverse_lazy(
+        return reverse(
             'profile',
             kwargs={'username': self.request.user.username}
         )
@@ -56,10 +56,9 @@ class ProfileView(ListView):
         return profile
 
     def get_queryset(self):
-        queryset = self.get_profile().posts.annotate(
-            comment_count=Count(
-                'comments', )
-        ).order_by('-pub_date')
+        queryset = annotate_comments(self.get_profile().posts)
+        if self.request.user.username != self.kwargs['username']:
+            return filter_posts_by_date(queryset)
         return queryset
 
     def get_context_data(self, **kwargs):

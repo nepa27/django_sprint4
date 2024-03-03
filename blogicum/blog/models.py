@@ -26,7 +26,6 @@ class IsPublishModel(CreatedAt):
 
     class Meta:
         abstract = True
-        ordering = ('-pub_date',)
 
 
 class Post(IsPublishModel):

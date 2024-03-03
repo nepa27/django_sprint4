@@ -44,8 +44,6 @@ class PostsAdmin(admin.ModelAdmin):
         return mark_safe(f'<img src={obj.image.url} width="80" height="60">')
     get_image.short_description = 'Изображение'
 
-    PAGINATION = 10
-
 
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):

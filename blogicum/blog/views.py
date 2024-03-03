@@ -13,11 +13,7 @@ from .mixin import PostMixin, CommentMixin, UserPassesMixin
 
 
 def filter_posts_by_date(post_manager):
-    return post_manager.select_related(
-        'author',
-        'location',
-        'category'
-    ).filter(
+    return post_manager.filter(
         pub_date__lte=now(),
         is_published=True,
         category__is_published=True,
@@ -25,7 +21,11 @@ def filter_posts_by_date(post_manager):
 
 
 def annotate_comments(post_manager):
-    return post_manager.annotate(
+    return post_manager.select_related(
+        'author',
+        'location',
+        'category'
+    ).annotate(
         comment_count=Count('comments')
     ).order_by('-pub_date')
 
@@ -47,12 +47,11 @@ class PostDetailView(ListView):
     def get_post(self):
         post = get_object_or_404(Post, pk=self.kwargs.get('post_pk'))
         if not post.is_published and post.author != self.request.user:
-            raise Http404("Пост не найден")
+            raise Http404('Пост не найден')
         return post
 
     def get_queryset(self):
-        queryset = self.get_post().comments.select_related('author')
-        return queryset
+        return self.get_post().comments.select_related('author')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -84,21 +83,9 @@ class UpdatePostView(PostMixin, UpdateView):
             kwargs={'post_pk': self.kwargs['post_pk']}
         )
 
-    # def test_func(self):
-    #     return self.request.user == self.get_object().author
-
 
 class DeletePostView(PostMixin, DeleteView):
     pass
-    #
-    # def handle_no_permission(self):
-    #     return redirect(
-    #         'blog:post_detail',
-    #         self.kwargs['post_pk']
-    #     )
-
-    # def test_func(self):
-    #     return self.request.user == self.get_object().author
 
 
 class CreateCommentView(CommentMixin, CreateView):
@@ -135,8 +122,11 @@ class CategoryView(ListView):
         return category
 
     def get_queryset(self):
-        queryset = filter_posts_by_date(self.get_category().posts.all())
-        return queryset
+        return filter_posts_by_date(
+            annotate_comments(
+                self.get_category().posts.all()
+            )
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
