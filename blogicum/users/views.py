@@ -1,7 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import Count
 from django.views.generic import CreateView, UpdateView, ListView
 from django.shortcuts import get_object_or_404, reverse
 from django.urls import reverse_lazy
